@@ -1,0 +1,27 @@
+# Class Structure
+
+## Simulator
+
+- Main class
+- default constructor with no arguments
+- Open(file) method opens the target file for processing
+- Run() method simulates the instructions in the designated file, throw error if no file is provided
+- Parse() method iterates through the file using standard IO and creats two vectors of instructions, _Data, and _Text
+
+
+# Run Steps (to be perfomed for each instruction)
+
+-Get Opcode
+
+ -if opcode == 0 then get $rd,$rs,$rt, and funct
+ -else determine encoding type
+ - if (i) then get $rs,$rt, and immediate
+ - if (j) then get target addr
+ - if syscall call syscall function
+
+
+ -call instruction method with correct paramaters
+
+V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions
+V2 Create methods for instruction decoding, call empty instruction functions
+V3 Create First instruction functions and test simulator

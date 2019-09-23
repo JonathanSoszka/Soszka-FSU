@@ -1,0 +1,74 @@
+
+
+
+Simulator Expectations:
+
+The simulator will recieve a file of machine encoded instructions as shown below.
+
+The first line has two decimal value numbers, the first number is the quantity of instructions,
+the second is the quantity of data values following the instructions
+
+The instructions are encoded in hexidecimal.
+
+18 1
+00008021
+00008821
+24020005
+0000000c
+af820000
+8f920000
+0232402a
+11000006
+24020005
+0000000c
+02028021
+26310001
+08000005
+02002021
+24020001
+0000000c
+2402000a
+0000000c
+00000005
+
+
+# Decoding Instructions
+
+To decode instructions the first step will be to convert from hexidecimal to binary.
+
+once we have the binary instruction we can determine the instruction trying to be executed using the first 6 binary digits (opcode)
+Based off the opcode we can determine the encoding format and the meaning of the rest of the binary string.
+
+## Instruction Types
+
+
+### R format
+- Opcode(6), $rd(5), $rs(5), $rt(5), shamt(5), funct(6)
+- combination of opcode, and funct determine instruction type
+- takes 1 - 3 arguments ($rd, $rs, $rt), when argument is unused it == 0
+- shamt unused in our cases
+
+### I format
+- Opcode(6), $rs(5), $rt(5), immediate(16)
+- instruction defined soley by opcode, immediate can be either a literal, data word, or instruction address/offset
+- offset values represent the number of instructions +/- away from the current.
+ 
+
+### J format
+- opcode(6), targaddr(26)
+- performs a jump to the address passed. 
+
+----------
+
+
+# Registers
+
+used to store numerical values used in computations. these can be handled with a simple array of ints/floats
+
+
+
+
+
+
+
+
