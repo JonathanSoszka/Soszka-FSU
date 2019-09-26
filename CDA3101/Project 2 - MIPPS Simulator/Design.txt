@@ -20,7 +20,38 @@
  - if syscall call syscall function
 
 
- -call instruction method with correct paramaters
+ -call instruction method with correct paramaters.
+
+##Logging
+ - GetAssemblyInst(std::string) // binary
+	--Takes in a binary string and converts to Assembly instruction
+
+ - GetSimulatorStatus()
+	--Prints the regester and data status 
+
+
+ParseFile()
+{
+  instructionLoop
+  {
+    _LogFile << i << ":" << GetAssemblyInst(machineCode)
+  }
+  DataLoop
+  {
+    _LogFile << i << ":" << BinaryToInt(HexToBinary(machineCode))
+  }
+}
+
+Run()
+{
+
+  
+
+}
+
+
+
+## Error Handling
 
 V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions (Done)
 V2 Create methods for instruction decoding, call empty instruction functions (Done)

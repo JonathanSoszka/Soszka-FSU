@@ -9,6 +9,7 @@ Jonathan Soszka
 #include <string>
 #include <cmath>
 #include <iomanip>
+#include <sstream>
 
 
 class Simulator
@@ -27,9 +28,10 @@ public:
 private:
 
   // ==== Private Data Members ====
+  static const size_t registerCount = 31;
   std::ifstream _sourceFile;
   std::ofstream _logFile;
-  int _registerMap[32][32] = {};  //2d array for registers and memory
+  int _registerMap[registerCount+1][32] = {};  //2d array for registers and memory
   std::string hi;                 //used in 64bit operations
   std::string lo;                 //used in 64bit operations
   std::vector<std::string> _textSegment; //Holds Machine Instructions
@@ -72,6 +74,9 @@ private:
   std::string IntToBinary(int val, size_t padding);
   int BinaryToInt (std::string binary);
   int BinaryToIntU (std::string binary);
+  std::string GetAssemblyInstruction (int opcode, int rs, int rt, int rd, int funct, int immediate, int targAddr);
+  std::string GetSimulatorStatus();
+  std::string _registerNames[registerCount + 1];
   void MippsExit();
 
 
@@ -82,6 +87,38 @@ private:
 //default constructor
 Simulator::Simulator()
 {
+  _registerNames[0] = "$zero";
+  _registerNames[1] = "$at";
+  _registerNames[2] = "$v0";
+  _registerNames[3] = "$v1";
+  _registerNames[4] = "$a0";
+  _registerNames[5] = "$a1";
+  _registerNames[6] = "$a2";
+  _registerNames[7] = "$a3";
+  _registerNames[8] = "$t0";
+  _registerNames[9] = "$t1";
+  _registerNames[10] = "$t2";
+  _registerNames[11] = "$t3";
+  _registerNames[12] = "$t4";
+  _registerNames[13] = "$t5";
+  _registerNames[14] = "$t6";
+  _registerNames[15] = "$t7";
+  _registerNames[16] = "$s0";
+  _registerNames[17] = "$s1";
+  _registerNames[18] = "$s2";
+  _registerNames[19] = "$s3";
+  _registerNames[20] = "$s4";
+  _registerNames[21] = "$s5";
+  _registerNames[22] = "$s6";
+  _registerNames[23] = "$s7";
+  _registerNames[24] = "$t8";
+  _registerNames[25] = "$t9";
+  _registerNames[26] = "$k0";
+  _registerNames[27] = "$k1";
+  _registerNames[28] = "$gp";
+  _registerNames[29] = "$sp";
+  _registerNames[30] = "$fp";
+  _registerNames[31] = "$ra";
 }
 
 Simulator::~Simulator()
@@ -110,21 +147,25 @@ bool Simulator::Run(char* logFileName)
 {
   ParseFile();
   LoadData();
+  _registerMap[28][0] = _textSegment.size();
 
   for (size_t i = 0; i < _textSegment.size(); i++)
   {
     std::string machineInstruction = HexToBinary(_textSegment[i]);
-    _logFile << "PC: " << i << "  |  " << machineInstruction << '\n';
     int opcode = BinaryToIntU(machineInstruction.substr(0,6));    //Get Opcode
+    int rs = BinaryToIntU(machineInstruction.substr(6,5));
+    int rt = BinaryToIntU(machineInstruction.substr(11,5));
+    int rd = BinaryToIntU(machineInstruction.substr(16,5));
+    int funct = BinaryToIntU(machineInstruction.substr(26,6));
+    int immediate = BinaryToInt(machineInstruction.substr(16,16));
+    int targAddr = BinaryToIntU(machineInstruction.substr(6,27));
+
+    _logFile << "PC:"  << i << '\n';
+    _logFile << "inst: " << GetAssemblyInstruction(opcode,rs,rt,rd,funct,immediate,targAddr) << "\n\n";
 
     //R Instruction
     if (opcode == 0)
     {
-      int rs = BinaryToIntU(machineInstruction.substr(6,5));
-      int rt = BinaryToIntU(machineInstruction.substr(11,5));
-      int rd = BinaryToIntU(machineInstruction.substr(16,5));
-      int funct = BinaryToIntU(machineInstruction.substr(26,6));
-
       switch (funct)
       {
         case 33: MippsAddu(rd,rs,rt,i);
@@ -153,11 +194,6 @@ bool Simulator::Run(char* logFileName)
     // I or J Instruction
     else
     {
-      int rs = BinaryToIntU(machineInstruction.substr(6,5));
-      int rt = BinaryToIntU(machineInstruction.substr(11,5));
-      int immediate = BinaryToInt(machineInstruction.substr(16,16));
-      int targAddr = BinaryToIntU(machineInstruction.substr(6,27));
-
       switch (opcode)
       {
         case 9: MippsAddiu(rs,rt,immediate,i);
@@ -174,7 +210,11 @@ bool Simulator::Run(char* logFileName)
         break;
       }
     }
+
+    _logFile << GetSimulatorStatus();
   }
+
+  //_logFile << GetSimulatorStatus();
   return 0;
 }
 
@@ -192,19 +232,36 @@ void Simulator::ParseFile()
   instruction.erase(0,instruction.find(' '));
   dataCount = stoi(instruction.substr(0,instruction.find('\n')));
 
+  _logFile << "insts:\n";
   for (size_t i = 0; i < instructionCount; i++)
   {
+
     _sourceFile.getline(line,50);
     std::string instruction = line;
     _textSegment.push_back(instruction);
+
+    //Logging
+    std::string machineInstruction = HexToBinary(line);
+    int opcode = BinaryToIntU(machineInstruction.substr(0,6));
+    int rs = BinaryToIntU(machineInstruction.substr(6,5));
+    int rt = BinaryToIntU(machineInstruction.substr(11,5));
+    int rd = BinaryToIntU(machineInstruction.substr(16,5));
+    int funct = BinaryToIntU(machineInstruction.substr(26,6));
+    int immediate = BinaryToInt(machineInstruction.substr(16,16));
+    int targAddr = BinaryToIntU(machineInstruction.substr(6,27));
+    _logFile << std::setw(4) << i << ": " << GetAssemblyInstruction(opcode,rs,rt,rd,funct,immediate,targAddr) << '\n';
   }
 
+  _logFile << '\n';
+  _logFile << "data:\n";
   for (size_t i = 0; i < dataCount; i++)
   {
     _sourceFile.getline(line,50);
     std::string instruction = line;
     _dataSegment.push_back(instruction);
+    _logFile << " " << i+instructionCount << ": " << BinaryToInt(HexToBinary(line)) << '\n';
   }
+  _logFile << "\n\n";
 }
 
 void Simulator::LoadData()
@@ -337,11 +394,12 @@ void Simulator::MippsBne(Simulator::mippsRegister rs, Simulator::mippsRegister r
 void Simulator::MippsJ(int targAddr, size_t& pc)
 {
   //std::cout << targAddr << '\n';
-  pc = targAddr;
+  pc = targAddr-1;
 }
 
 void Simulator::MippsExit()
 {
+  _logFile << "exiting simulator\n";
   _logFile.close();
   _sourceFile.close();
   exit(0);
@@ -350,6 +408,100 @@ void Simulator::MippsExit()
 
 //Logfile Support
 
+std::string Simulator::GetAssemblyInstruction (int opcode, int rs, int rt, int rd, int funct, int immediate, int targAddr)
+{
+  std::stringstream ins;
+  std::string rdString = _registerNames[rd];
+  std::string rsString = _registerNames[rs];
+  std::string rtString = _registerNames[rt];
+
+  size_t col1 = 8;
+
+  if (opcode == 0)
+  {
+    switch (funct)
+    {
+      case 33: ins << std::setw(col1) <<std::left << "addu" << rdString << "," <<  rsString << ',' <<  rtString ;
+        break;
+      case 36: ins << std::setw(col1) <<std::left << "and" << rdString << "," <<  rsString << ',' <<  rtString ;
+        break;
+      case 26: ins << std::setw(col1) <<std::left << "div" << rsString << ',' <<  rtString;
+        break;
+      case 16: ins << std::setw(col1) <<std::left << "mfhi" << rdString;
+        break;
+      case 18: ins << std::setw(col1) <<std::left << "mflo" << rdString;
+        break;
+      case 24: ins << std::setw(col1) <<std::left << "mult" << rsString << ',' <<  rtString;
+        break;
+      case 37: ins << std::setw(col1) <<std::left << "and" << rdString << "," <<  rsString << ',' <<  rtString ;
+        break;
+      case 42: ins << std::setw(col1) <<std::left << "slt" << rdString << "," <<  rsString << ',' <<  rtString ;
+        break;
+      case 35: ins << std::setw(col1) <<std::left << "subu" << rdString << "," <<  rsString << ',' <<  rtString ;
+        break;
+      case 12: ins << std::setw(col1) <<std::left << "syscall";
+        break;
+      default: ins << "Function not supported";
+        break;
+    }
+    return ins.str();
+  }
+
+  // I or J Instruction
+  else
+  {
+    switch (opcode)
+    {
+      case 9: ins << std::setw(col1) << std::left << "addiu" << rtString << "," <<  rsString << ',' <<  immediate;
+        break;
+      case 4: ins << std::setw(col1) << std::left << "beq" << rsString << "," <<  rtString << ',' <<  immediate;
+        break;
+      case 5: ins << std::setw(col1) << std::left << "bne" << rsString << "," <<  rtString << ',' <<  immediate;
+        break;
+      case 35: ins << std::setw(col1) << std::left << "lw" << rtString << "," << immediate <<'(' << rsString << ')';
+        break;
+      case 43: ins << std::setw(col1) <<std::left << "sw" << rtString << "," << immediate <<'(' << rsString << ')';
+        break;
+      case 2: ins << "j " << targAddr;
+        break;
+      default: ins << "Instruction Not supported.";
+        break;
+    }
+    return ins.str();
+  }
+}
+
+std::string Simulator::GetSimulatorStatus()
+{
+  std::stringstream status;
+  status << "regs:\n";
+  for (size_t i = 0; i < registerCount; i++)
+  {
+    status << std::setw(8) << _registerNames[i] << " =" << std::setw(6) << _registerMap[i][0];
+    if ((i + 1) % 4 == 0)
+      status << '\n';
+  }
+
+  status << std::setw(8) << "$ra" << " =" << std::setw(6) << 0 << '\n';
+  status << std::setw(8) << "$lo" << " =" << std::setw(6) << BinaryToInt(lo);
+  status << std::setw(8) << "$hi" << " =" << std::setw(6) << BinaryToInt(hi);
+
+  status << "\n\n";
+
+  status << "data memory:\n";
+  for (size_t i = 0; i < _dataSegment.size(); i++)
+  {
+    status << std::setw(7) << "data" << "[" << std::setw(3) << i << "]" << " =" << std::setw(6) << _registerMap[28][i+1];
+    if ((i+1) % 3 == 0)
+    {
+      status << '\n';
+    }
+  }
+
+  status << "\n\n\n";
+
+  return status.str();
+}
 
 
 
