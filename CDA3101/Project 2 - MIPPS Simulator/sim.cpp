@@ -8,7 +8,7 @@ Jonathan Soszka
 #include <vector>
 #include <string>
 #include <cmath>
-
+#include <iomanip>
 
 
 class Simulator
@@ -19,47 +19,52 @@ class Simulator
 public:
 
   Simulator ();
-  bool Open(char* sourceFileName);
-  bool Run(char* logFileName);
+  ~Simulator();
+  bool Open(char* sourceFileName);     //Opens files for IO processes
+  bool Run(char* logFileName);         //Main driver for simulation, Calls helper methods.
 
 
 private:
-  void ParseFile();
-  void LoadData();
 
+  // ==== Private Data Members ====
   std::ifstream _sourceFile;
-  int _registerMap[32][32] = {};
-  std::string hi;
-  std::string lo;
-  std::vector<std::string> _textSegment;
-  std::vector<std::string> _dataSegment;
+  std::ofstream _logFile;
+  int _registerMap[32][32] = {};  //2d array for registers and memory
+  std::string hi;                 //used in 64bit operations
+  std::string lo;                 //used in 64bit operations
+  std::vector<std::string> _textSegment; //Holds Machine Instructions
+  std::vector<std::string> _dataSegment; //Holds Data instructions
+  //Logfile support
+  std::vector<std::string> _mippsInstructions; //Assembley language representation.
+
+
+  // ==== Private Methods ====
+  void ParseFile();  //Split source file into two segments, Data and Text(instructions)
+  void LoadData();   //Load the data from the data segment into $gp
 
   //Mipps Functions
 
   //R
-  void MippsAddu (mippsRegister rd, mippsRegister rs, mippsRegister rt);
-  void MippsAnd (mippsRegister rd, mippsRegister rs, mippsRegister rt);
-  void MippsDiv (mippsRegister rs, mippsRegister rt);
-  void MippsMfhi (mippsRegister rd);
-  void MippsMflo (mippsRegister rd);
-  void MippsMult (mippsRegister rs, mippsRegister rt);
-  void MippsOr (mippsRegister rd, mippsRegister rs, mippsRegister rt);
-  void MippsSlt (mippsRegister rd, mippsRegister rs, mippsRegister rt);
-  void MippsSubu (mippsRegister rd, mippsRegister rs, mippsRegister rt);
-  void MippsSyscall();
+  void MippsAddu (mippsRegister rd, mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsAnd (mippsRegister rd, mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsDiv (mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsMfhi (mippsRegister rd, size_t& pc);
+  void MippsMflo (mippsRegister rd, size_t& pc);
+  void MippsMult (mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsOr (mippsRegister rd, mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsSlt (mippsRegister rd, mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsSubu (mippsRegister rd, mippsRegister rs, mippsRegister rt, size_t& pc);
+  void MippsSyscall(size_t& pc);
 
   //I
-  void MippsAddiu (mippsRegister rs, mippsRegister rt , int immed);
+  void MippsAddiu (mippsRegister rs, mippsRegister rt , int immed, size_t& pc);
   void MippsBeq (mippsRegister rs, mippsRegister rt, int offset, size_t& pc);
   void MippsBne (mippsRegister rs, mippsRegister rt, int offset, size_t& pc);
-  void MippsLw (mippsRegister rs, mippsRegister rt, int immed);
-  void MippsSw (mippsRegister rs, mippsRegister rt, mippsRegister immed);
+  void MippsLw (mippsRegister rs, mippsRegister rt, int immed, size_t& pc);
+  void MippsSw (mippsRegister rs, mippsRegister rt, mippsRegister immed, size_t& pc);
 
   //J
   void MippsJ (int targAddr, size_t& pc);
-
-
-
 
 
   //Helper functions
@@ -67,13 +72,21 @@ private:
   std::string IntToBinary(int val, size_t padding);
   int BinaryToInt (std::string binary);
   int BinaryToIntU (std::string binary);
+  void MippsExit();
+
+
 
 
 };
 
 //default constructor
 Simulator::Simulator()
-{}
+{
+}
+
+Simulator::~Simulator()
+{
+}
 
 //opens designated file for processing
 bool Simulator::Open(char* sourceFileName)
@@ -82,7 +95,14 @@ bool Simulator::Open(char* sourceFileName)
   if (_sourceFile.fail() == 1)
     return 0;
 
-  return 1;
+
+  _logFile.open("log.txt");
+  if (!_logFile.is_open())
+  {
+    std::cerr << "Log file could not be opened\n";
+    return 0;
+  }
+    return 1;
 }
 
 //Call helper methods to run file.
@@ -90,81 +110,71 @@ bool Simulator::Run(char* logFileName)
 {
   ParseFile();
   LoadData();
+
   for (size_t i = 0; i < _textSegment.size(); i++)
   {
     std::string machineInstruction = HexToBinary(_textSegment[i]);
-    int opcode = BinaryToIntU(machineInstruction.substr(0,6));
-    if (machineInstruction.substr(0,6) == "000000") // R or syscall
+    _logFile << "PC: " << i << "  |  " << machineInstruction << '\n';
+    int opcode = BinaryToIntU(machineInstruction.substr(0,6));    //Get Opcode
+
+    //R Instruction
+    if (opcode == 0)
     {
       int rs = BinaryToIntU(machineInstruction.substr(6,5));
       int rt = BinaryToIntU(machineInstruction.substr(11,5));
       int rd = BinaryToIntU(machineInstruction.substr(16,5));
       int funct = BinaryToIntU(machineInstruction.substr(26,6));
-      //std::cout << machineInstruction << " | " << opcode << ", " << rs << ", " << rt << ", " << rd << ", " << funct << "\n";
 
       switch (funct)
       {
-        case 33: MippsAddu(rd,rs,rt);
+        case 33: MippsAddu(rd,rs,rt,i);
         break;
-
-        case 36:MippsAnd(rd,rs,rt);
+        case 36:MippsAnd(rd,rs,rt,i);
         break;
-
-        case 26: MippsDiv(rs,rt);
+        case 26: MippsDiv(rs,rt,i);
         break;
-
-        case 16: MippsMfhi(rd);
+        case 16: MippsMfhi(rd,i);
         break;
-
-        case 18: MippsMflo(rd);
+        case 18: MippsMflo(rd,i);
         break;
-
-        case 24: MippsMult(rs,rt);
+        case 24: MippsMult(rs,rt,i);
         break;
-
-        case 37: MippsOr(rd,rs,rt);
+        case 37: MippsOr(rd,rs,rt,i);
         break;
-
-        case 42: MippsSlt(rd,rs,rt);
+        case 42: MippsSlt(rd,rs,rt,i);
         break;
-
-        case 35: MippsSubu(rd,rs,rt);
+        case 35: MippsSubu(rd,rs,rt,i);
         break;
-
-        case 12: MippsSyscall();
+        case 12: MippsSyscall(i);
         break;
       }
     }
 
-    else // I or J
+    // I or J Instruction
+    else
     {
       int rs = BinaryToIntU(machineInstruction.substr(6,5));
       int rt = BinaryToIntU(machineInstruction.substr(11,5));
       int immediate = BinaryToInt(machineInstruction.substr(16,16));
       int targAddr = BinaryToIntU(machineInstruction.substr(6,27));
-      //std::cout << machineInstruction << " | " << opcode << ", " << rs << ", " << rt << ", " << immediate << ", " << targAddr << "\n";
 
       switch (opcode)
       {
-        case 9: MippsAddiu(rs,rt,immediate);
+        case 9: MippsAddiu(rs,rt,immediate,i);
         break;
         case 4: MippsBeq(rs,rt,immediate,i);
         break;
         case 5: MippsBne(rs,rt,immediate,i);
         break;
-        case 35: MippsLw(rs,rt,immediate);
+        case 35: MippsLw(rs,rt,immediate,i);
         break;
-        case 43: MippsSw(rs,rt,immediate);
+        case 43: MippsSw(rs,rt,immediate,i);
         break;
-
         case 2: MippsJ(targAddr,i);
         break;
       }
     }
   }
-
-
-
   return 0;
 }
 
@@ -177,6 +187,7 @@ void Simulator::ParseFile()
   _sourceFile.getline(line,50);
   std::string instruction = line;
 
+  //Get instruction and data count from first line
   instructionCount = stoi(instruction.substr(0,instruction.find(' ')));
   instruction.erase(0,instruction.find(' '));
   dataCount = stoi(instruction.substr(0,instruction.find('\n')));
@@ -204,82 +215,68 @@ void Simulator::LoadData()
   }
 }
 
-//====== Mipps Function Implementations ======
+//====== Mipps Function Implementations =======
 
-//R
-void Simulator::MippsAddu(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+// === R ===
+void Simulator::MippsAddu(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   _registerMap[rd][0] = _registerMap[rs][0] + _registerMap[rt][0];
-  //std::cout << "new RD = " << _registerMap[rd][0] << "\n";
 }
 
-void Simulator::MippsSubu(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+void Simulator::MippsSubu(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   _registerMap[rd][0] = _registerMap[rs][0] - _registerMap[rt][0];
 }
 
-
-void Simulator::MippsMult(Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+void Simulator::MippsMult(Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   int product = _registerMap[rs][0] * _registerMap[rt][0];
   std::string result = IntToBinary(product,64);
   hi = result.substr(0,31);
   lo = result.substr(32,61);
-  //std:: cout << _registerMap[rs][0] << " * " << _registerMap[rt][0] << " =  ";
-  //std::cout << lo << "  |  " << hi << '\n';
 }
 
-void Simulator::MippsDiv(Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+void Simulator::MippsDiv(Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   int quotient = _registerMap[rs][0] / _registerMap[rt][0];
   int remainder = _registerMap[rs][0] % _registerMap[rt][0];
-
   hi = IntToBinary(remainder,32);
   lo = IntToBinary(quotient,32);
 }
 
-
-void Simulator::MippsMfhi(Simulator::mippsRegister rd)
+void Simulator::MippsMfhi(Simulator::mippsRegister rd, size_t& pc)
 {
  _registerMap[rd][0] = BinaryToInt(hi);
 }
 
-void Simulator::MippsMflo(Simulator::mippsRegister rd)
+void Simulator::MippsMflo(Simulator::mippsRegister rd, size_t& pc)
 {
   _registerMap[rd][0] = BinaryToInt(lo);
-  //std::cout << BinaryToInt(lo) << " mflo " << '\n';
 }
 
-
-void Simulator::MippsAnd(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+void Simulator::MippsAnd(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   _registerMap[rd][0] = _registerMap[rs][0] & _registerMap[rt][0];
 }
 
-void Simulator::MippsOr(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+void Simulator::MippsOr(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   _registerMap[rd][0] = _registerMap[rs][0] | _registerMap[rt][0];
 }
 
-
-void Simulator::MippsSlt(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt)
+void Simulator::MippsSlt(Simulator::mippsRegister rd, Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
   if (_registerMap[rs][0] < _registerMap[rt][0])
   {
     _registerMap[rd][0] = 1;
-    //std::cout << "Set" << "\n";
   }
   else
     {
-    _registerMap [rd][0] = 0;
-    //std::cout << "not set\n";
+      _registerMap [rd][0] = 0;
     }
 }
 
-
-
-
-void Simulator::MippsSyscall()
+void Simulator::MippsSyscall(size_t& pc)
 {
   int arg = _registerMap[2][0]; //$v0
   int input;
@@ -290,28 +287,27 @@ void Simulator::MippsSyscall()
     case 5: std::cin >> input;
             _registerMap[2][0] = input;
             break;
-    case 10: exit(0);
+    case 10: MippsExit();
              break;
   }
 }
 
 
-
-//I
-void Simulator::MippsAddiu(Simulator::mippsRegister rs, Simulator::mippsRegister rt, int immed)
+// === I ===
+void Simulator::MippsAddiu(Simulator::mippsRegister rs, Simulator::mippsRegister rt, int immed, size_t& pc)
 {
   _registerMap[rt][0] = _registerMap[rs][0] + immed;
   //std::cout << "new RT = " << _registerMap[rt][0] << "\n";
 }
 
-void Simulator::MippsSw(Simulator::mippsRegister rs, Simulator::mippsRegister rt, Simulator::mippsRegister immed)
+void Simulator::MippsSw(Simulator::mippsRegister rs, Simulator::mippsRegister rt, Simulator::mippsRegister immed, size_t& pc)
 {
   int memLoc = immed + 1;
   _registerMap[rs][memLoc] = _registerMap[rt][0];
   //std::cout << "Stored: " << _registerMap[rt][0] << " in " << "(" << memLoc << ")" << rs << "\n";
 }
 
-void Simulator::MippsLw(Simulator::mippsRegister rs, Simulator::mippsRegister rt, int immed)
+void Simulator::MippsLw(Simulator::mippsRegister rs, Simulator::mippsRegister rt, int immed, size_t& pc)
 {
   int memLoc = immed + 1;
   _registerMap[rt][0] = _registerMap[rs][memLoc];
@@ -337,13 +333,26 @@ void Simulator::MippsBne(Simulator::mippsRegister rs, Simulator::mippsRegister r
   }
 }
 
-
-//J
+// === J ===
 void Simulator::MippsJ(int targAddr, size_t& pc)
 {
   //std::cout << targAddr << '\n';
   pc = targAddr;
 }
+
+void Simulator::MippsExit()
+{
+  _logFile.close();
+  _sourceFile.close();
+  exit(0);
+}
+
+
+//Logfile Support
+
+
+
+
 
 //Helper function implementations
 std::string Simulator::HexToBinary(std::string hex)
@@ -388,7 +397,7 @@ std::string Simulator::HexToBinary(std::string hex)
     }
   }
   return binary;
-}
+}//HexToBinary
 
 int Simulator::BinaryToInt(std::string binary)
 {
@@ -423,7 +432,7 @@ int Simulator::BinaryToInt(std::string binary)
   }
 
   return result;
-}
+}//BinaryToInt
 
 int Simulator::BinaryToIntU(std::string binary)
 {
@@ -437,9 +446,7 @@ int Simulator::BinaryToIntU(std::string binary)
   }
 
   return result;
-}
-
-
+}//BinaryToIntU
 
 std::string Simulator::IntToBinary(int x, size_t padding)
 {
@@ -487,16 +494,16 @@ std::string Simulator::IntToBinary(int x, size_t padding)
 
   }
   return binary;
-}
+}//IntToBinary
 
 
 
 
 int main(int argc, char** argv)
 {
-  if (argc < 3)
+  if (argc < 2)
   {
-    std::cerr << "Please provide 2 arguments: input file and output file" << '\n';
+    std::cerr << "Please provide 1 arguments: input file" << '\n';
     return 1;
   }
 
@@ -507,8 +514,6 @@ int main(int argc, char** argv)
     std::cerr << "Source file could not be opened.\n";
     return 1;
   }
-
-
 
   sim.Run(argv[2]);  //Run simulator use destination file as log.
 

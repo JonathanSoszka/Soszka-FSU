@@ -22,6 +22,8 @@
 
  -call instruction method with correct paramaters
 
-V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions
-V2 Create methods for instruction decoding, call empty instruction functions
-V3 Create First instruction functions and test simulator
+V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions (Done)
+V2 Create methods for instruction decoding, call empty instruction functions (Done)
+V3 Create First instruction functions and test simulator (Done)
+V4 Add log file output
+V5 Error Handling

@@ -66,6 +66,17 @@ Based off the opcode we can determine the encoding format and the meaning of the
 used to store numerical values used in computations. these can be handled with a simple array of ints/floats
 
 
+# Logfile output
+
+The log file starts with a list of all assembly instructions, This will require a conversion of hex -> asm instrunct.
+
+After the summarry the executition begins, at the end of each instruction executrion we need to log the current PC value,
+the instruction, and the register map status, aswell as the value of all data in memory. Finally we need to log 
+"exiting simulator" on simulator exit.
+
+
+
+
 
 
 
