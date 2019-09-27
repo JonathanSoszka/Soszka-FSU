@@ -117,6 +117,21 @@ data memory:
    data[  0] =     3
 
 
+# Error Output
+
+We need to be able to identify the following errors and report on them
+
+illegeal instruction: this can be detected in the default case statments for run()
+illegal instruction address: this can be detected at the begging of the run() loop
+illegal data address: this can be detected in sw and lw
+integer divide by zero: this can be detected in div
+
+outputs
+
+illegeal instruction:         "could not find inst with opcode 20"  
+illegal instruction address:  "PC is accessing illegal memory address 255"
+illegal data address:         "store outside of data memory at address 20"
+integer divide by zero:       "divide by zero for instruction at 11"
 
 
 

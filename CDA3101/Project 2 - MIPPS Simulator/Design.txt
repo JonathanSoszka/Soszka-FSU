@@ -44,17 +44,22 @@ ParseFile()
 
 Run()
 {
-
+  ParseFile();
   
-
+  ..Logic to determine Instructions
 }
 
 
 
 ## Error Handling
 
+
+uset MippsExit(int errorCode, std::string errorMessage) to report error feedback
+
+
 V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions (Done)
 V2 Create methods for instruction decoding, call empty instruction functions (Done)
 V3 Create First instruction functions and test simulator (Done)
-V4 Add log file output
-V5 Error Handling
+V4 Add log file output (Done)
+V5 Refactor gp to handle growing data(not needed)
+V6 Error Handling(In progress)

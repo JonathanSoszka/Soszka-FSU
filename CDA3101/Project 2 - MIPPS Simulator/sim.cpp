@@ -1,6 +1,13 @@
 /*
 sim.cpp
 Jonathan Soszka
+
+
+ Compile Command:
+
+ $g++ -std=c++11 -Wall -Wextra -o sim.exe sim.o
+ $g++ -std=c++11 -Wall -Wextra -I. -c sim.cpp
+
 */
 
 #include <iostream>
@@ -77,7 +84,7 @@ private:
   std::string GetAssemblyInstruction (int opcode, int rs, int rt, int rd, int funct, int immediate, int targAddr);
   std::string GetSimulatorStatus();
   std::string _registerNames[registerCount + 1];
-  void MippsExit();
+  void MippsExit(size_t exitCode, std::string exitMessage = "");
 
 
 
@@ -160,8 +167,11 @@ bool Simulator::Run(char* logFileName)
     int immediate = BinaryToInt(machineInstruction.substr(16,16));
     int targAddr = BinaryToIntU(machineInstruction.substr(6,27));
 
-    _logFile << "PC:"  << i << '\n';
-    _logFile << "inst: " << GetAssemblyInstruction(opcode,rs,rt,rd,funct,immediate,targAddr) << "\n\n";
+    if (_registerMap[0][0] != -0)
+      _registerMap[0][0] = 0;
+
+    _logFile << "PC: "  << i << '\n';
+    _logFile << "inst: " << GetAssemblyInstruction(opcode,rs,rt,rd,funct,immediate,targAddr) << "\n";
 
     //R Instruction
     if (opcode == 0)
@@ -188,6 +198,8 @@ bool Simulator::Run(char* logFileName)
         break;
         case 12: MippsSyscall(i);
         break;
+        default: MippsExit(1, "could not find inst with opcode 0 and funct " + std::to_string(funct));
+        break;
       }
     }
 
@@ -208,11 +220,20 @@ bool Simulator::Run(char* logFileName)
         break;
         case 2: MippsJ(targAddr,i);
         break;
+        default: MippsExit(1, "could not find inst with opcode " + std::to_string(opcode));
+        break;
       }
     }
 
-    _logFile << GetSimulatorStatus();
+    if (i >= _textSegment.size())
+    {
+      MippsExit(2,"PC is accessing illegal memory address " + std::to_string(i+1));
+    }
+
+    _logFile << '\n' << GetSimulatorStatus();
   }
+
+
 
   //_logFile << GetSimulatorStatus();
   return 0;
@@ -259,9 +280,9 @@ void Simulator::ParseFile()
     _sourceFile.getline(line,50);
     std::string instruction = line;
     _dataSegment.push_back(instruction);
-    _logFile << " " << i+instructionCount << ": " << BinaryToInt(HexToBinary(line)) << '\n';
+    _logFile << "  " << i+instructionCount << ": " << BinaryToInt(HexToBinary(line)) << '\n';
   }
-  _logFile << "\n\n";
+  _logFile << "\n";
 }
 
 void Simulator::LoadData()
@@ -295,6 +316,10 @@ void Simulator::MippsMult(Simulator::mippsRegister rs, Simulator::mippsRegister 
 
 void Simulator::MippsDiv(Simulator::mippsRegister rs, Simulator::mippsRegister rt, size_t& pc)
 {
+  if (rt == 0)
+  {
+    MippsExit(4,"divide by zero for instruction at " + std::to_string(pc));
+  }
   int quotient = _registerMap[rs][0] / _registerMap[rt][0];
   int remainder = _registerMap[rs][0] % _registerMap[rt][0];
   hi = IntToBinary(remainder,32);
@@ -344,7 +369,7 @@ void Simulator::MippsSyscall(size_t& pc)
     case 5: std::cin >> input;
             _registerMap[2][0] = input;
             break;
-    case 10: MippsExit();
+    case 10: MippsExit(0);
              break;
   }
 }
@@ -359,16 +384,22 @@ void Simulator::MippsAddiu(Simulator::mippsRegister rs, Simulator::mippsRegister
 
 void Simulator::MippsSw(Simulator::mippsRegister rs, Simulator::mippsRegister rt, Simulator::mippsRegister immed, size_t& pc)
 {
+  if (immed+1 > _dataSegment.size())
+  {
+    MippsExit(3, "store outside of data memory at address " + std::to_string(_textSegment.size() + immed));
+  }
   int memLoc = immed + 1;
   _registerMap[rs][memLoc] = _registerMap[rt][0];
-  //std::cout << "Stored: " << _registerMap[rt][0] << " in " << "(" << memLoc << ")" << rs << "\n";
 }
 
 void Simulator::MippsLw(Simulator::mippsRegister rs, Simulator::mippsRegister rt, int immed, size_t& pc)
 {
-  int memLoc = immed + 1;
+  if (immed + 1 > _dataSegment.size())
+  {
+    MippsExit(3, "load outside of data memory at address " + std::to_string(_textSegment.size() + immed));
+  }
+  int memLoc          = immed + 1;
   _registerMap[rt][0] = _registerMap[rs][memLoc];
-  //std::cout << "Loaded: " << _registerMap[rt][0] << " from " << "(" << memLoc << ")" << rs << "\n";
 }
 
 void Simulator::MippsBeq(Simulator::mippsRegister rs, Simulator::mippsRegister rt, int offset, size_t& pc)
@@ -397,12 +428,25 @@ void Simulator::MippsJ(int targAddr, size_t& pc)
   pc = targAddr-1;
 }
 
-void Simulator::MippsExit()
+void Simulator::MippsExit(size_t exitCode, std::string exitMessage)
 {
-  _logFile << "exiting simulator\n";
-  _logFile.close();
-  _sourceFile.close();
-  exit(0);
+  if (exitCode == 0)
+  {
+    _logFile << "exiting simulator\n";
+    _logFile.close();
+    _sourceFile.close();
+    exit(0);
+  }
+
+  else
+  {
+    std::cerr << exitMessage << '\n';
+    _logFile.close();
+    _sourceFile.close();
+    exit(0);
+  }
+
+
 }
 
 
@@ -421,27 +465,27 @@ std::string Simulator::GetAssemblyInstruction (int opcode, int rs, int rt, int r
   {
     switch (funct)
     {
-      case 33: ins << std::setw(col1) <<std::left << "addu" << rdString << "," <<  rsString << ',' <<  rtString ;
+      case 33: ins << "addu\t" << rdString << "," <<  rsString << ',' <<  rtString ;
         break;
-      case 36: ins << std::setw(col1) <<std::left << "and" << rdString << "," <<  rsString << ',' <<  rtString ;
+      case 36: ins << "and\t" << rdString << "," <<  rsString << ',' <<  rtString ;
         break;
-      case 26: ins << std::setw(col1) <<std::left << "div" << rsString << ',' <<  rtString;
+      case 26: ins << "div\t" << rsString << ',' <<  rtString;
         break;
-      case 16: ins << std::setw(col1) <<std::left << "mfhi" << rdString;
+      case 16: ins << "mfhi\t" << rdString;
         break;
-      case 18: ins << std::setw(col1) <<std::left << "mflo" << rdString;
+      case 18: ins << "mflo\t" << rdString;
         break;
-      case 24: ins << std::setw(col1) <<std::left << "mult" << rsString << ',' <<  rtString;
+      case 24: ins << "mult\t" << rsString << ',' <<  rtString;
         break;
-      case 37: ins << std::setw(col1) <<std::left << "and" << rdString << "," <<  rsString << ',' <<  rtString ;
+      case 37: ins << "and\t" << rdString << "," <<  rsString << ',' <<  rtString ;
         break;
-      case 42: ins << std::setw(col1) <<std::left << "slt" << rdString << "," <<  rsString << ',' <<  rtString ;
+      case 42: ins << "slt\t" << rdString << "," <<  rsString << ',' <<  rtString ;
         break;
-      case 35: ins << std::setw(col1) <<std::left << "subu" << rdString << "," <<  rsString << ',' <<  rtString ;
+      case 35: ins << "subu\t" << rdString << "," <<  rsString << ',' <<  rtString ;
         break;
-      case 12: ins << std::setw(col1) <<std::left << "syscall";
+      case 12: ins << "syscall";
         break;
-      default: ins << "Function not supported";
+      default: ins << "Function not supported\t";
         break;
     }
     return ins.str();
@@ -452,17 +496,17 @@ std::string Simulator::GetAssemblyInstruction (int opcode, int rs, int rt, int r
   {
     switch (opcode)
     {
-      case 9: ins << std::setw(col1) << std::left << "addiu" << rtString << "," <<  rsString << ',' <<  immediate;
+      case 9: ins << "addiu\t" << rtString << "," <<  rsString << ',' <<  immediate;
         break;
-      case 4: ins << std::setw(col1) << std::left << "beq" << rsString << "," <<  rtString << ',' <<  immediate;
+      case 4: ins << "beq\t" << rsString << "," <<  rtString << ',' <<  immediate;
         break;
-      case 5: ins << std::setw(col1) << std::left << "bne" << rsString << "," <<  rtString << ',' <<  immediate;
+      case 5: ins << "bne\t" << rsString << "," <<  rtString << ',' <<  immediate;
         break;
-      case 35: ins << std::setw(col1) << std::left << "lw" << rtString << "," << immediate <<'(' << rsString << ')';
+      case 35: ins << "lw\t" << rtString << "," << immediate <<'(' << rsString << ')';
         break;
-      case 43: ins << std::setw(col1) <<std::left << "sw" << rtString << "," << immediate <<'(' << rsString << ')';
+      case 43: ins << "sw\t" << rtString << "," << immediate <<'(' << rsString << ')';
         break;
-      case 2: ins << "j " << targAddr;
+      case 2: ins << "j\t" << targAddr;
         break;
       default: ins << "Instruction Not supported.";
         break;
