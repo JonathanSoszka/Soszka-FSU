@@ -20,8 +20,46 @@
  - if syscall call syscall function
 
 
- -call instruction method with correct paramaters
+ -call instruction method with correct paramaters.
 
-V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions
-V2 Create methods for instruction decoding, call empty instruction functions
-V3 Create First instruction functions and test simulator
+##Logging
+ - GetAssemblyInst(std::string) // binary
+	--Takes in a binary string and converts to Assembly instruction
+
+ - GetSimulatorStatus()
+	--Prints the regester and data status 
+
+
+ParseFile()
+{
+  instructionLoop
+  {
+    _LogFile << i << ":" << GetAssemblyInst(machineCode)
+  }
+  DataLoop
+  {
+    _LogFile << i << ":" << BinaryToInt(HexToBinary(machineCode))
+  }
+}
+
+Run()
+{
+  ParseFile();
+  
+  ..Logic to determine Instructions
+}
+
+
+
+## Error Handling
+
+
+uset MippsExit(int errorCode, std::string errorMessage) to report error feedback
+
+
+V1 Get simulator class framed and file I/O handled. Create vector for registers, and empty instruction functions (Done)
+V2 Create methods for instruction decoding, call empty instruction functions (Done)
+V3 Create First instruction functions and test simulator (Done)
+V4 Add log file output (Done)
+V5 Refactor gp to handle growing data(not needed)
+V6 Error Handling(In progress)
