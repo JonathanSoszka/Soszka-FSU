@@ -62,4 +62,4 @@ V2 Create methods for instruction decoding, call empty instruction functions (Do
 V3 Create First instruction functions and test simulator (Done)
 V4 Add log file output (Done)
 V5 Refactor gp to handle growing data(not needed)
-V6 Error Handling(In progress)
+V6 Error Handling(Done)
