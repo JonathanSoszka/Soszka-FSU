@@ -236,10 +236,6 @@ bool Simulator::Run()
 
     _logFile << '\n' << GetSimulatorStatus();
   }
-
-
-
-  //_logFile << GetSimulatorStatus();
   return 0;
 }
 
@@ -542,9 +538,10 @@ std::string Simulator::GetSimulatorStatus()
     {
       status << '\n';
     }
+    status << '\n';
   }
 
-  status << "\n\n\n";
+  status << "\n\n";
 
   return status.str();
 }
